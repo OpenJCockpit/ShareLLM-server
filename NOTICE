@@ -1,0 +1,15 @@
+ShareLLM Server
+
+Copyright (c) 2026 MetaFactory B.V.
+
+This project is licensed under the Apache License, Version 2.0.
+See the LICENSE file for the full text of the license.
+
+This project depends on third-party software components, such as Spring Boot and the
+PostgreSQL JDBC driver and the other Maven dependencies it builds on, and the PostgreSQL
+container image used for local development. Those components are subject to their own
+license terms and notices.
+
+The bundled openapi.yaml describes ShareLLM Server's own API. Its Ollama-compatible
+endpoints follow the Ollama API (https://github.com/ollama/ollama), which is a separate
+project licensed under its own terms.

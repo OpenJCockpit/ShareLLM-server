@@ -1,0 +1,42 @@
+# Shared services. Always combine with an overlay, selected through COMPOSE_FILE in .env:
+#   local development:  COMPOSE_FILE=compose.yaml:compose.dev.yaml   (see docs/development.md)
+#   production:         COMPOSE_FILE=compose.yaml:compose.prod.yaml  (see docs/deployment.md)
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: sharellm
+      POSTGRES_USER: sharellm
+    volumes:
+      - sharellm_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sharellm -d sharellm"]
+      interval: 5s
+      retries: 15
+    networks: [backend]
+
+  sharellm:
+    build: .
+    image: ${SHARELLM_IMAGE:-sharellm-server:local}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${SHARELLM_DATABASE_URL:-jdbc:postgresql://postgres:5432/sharellm}
+      DATABASE_USER: ${SHARELLM_DATABASE_USER:-sharellm}
+      REQUEST_WAIT_SECONDS: ${REQUEST_WAIT_SECONDS:-300}
+      HEARTBEAT_TIMEOUT_SECONDS: ${HEARTBEAT_TIMEOUT_SECONDS:-35}
+      LEASE_SECONDS: ${LEASE_SECONDS:-45}
+      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+      WORKER_POLL_SECONDS: ${WORKER_POLL_SECONDS:-15}
+      RESULT_RETENTION_HOURS: ${RESULT_RETENTION_HOURS:-24}
+      QUEUE_LIMIT: ${QUEUE_LIMIT:-0}
+      MAX_BODY_BYTES: ${MAX_BODY_BYTES:-1048576}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-24}
+    networks: [backend]
+
+networks:
+  backend:
+
+volumes:
+  sharellm_pg:

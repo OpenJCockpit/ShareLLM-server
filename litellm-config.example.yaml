@@ -1,0 +1,10 @@
+# Start LiteLLM with: litellm --config litellm-config.example.yaml
+# Export SHARELLM_PUBLIC_KEY with the same token as one of SHARELLM_PUBLIC_KEYS on the server.
+# The local Ollama model name must be advertised by at least one heartbeat worker.
+model_list:
+  - model_name: shared-llama
+    litellm_params:
+      model: openai/llama3.2:latest
+      api_base: http://localhost:8080/v1
+      api_key: os.environ/SHARELLM_PUBLIC_KEY
+      timeout: 350

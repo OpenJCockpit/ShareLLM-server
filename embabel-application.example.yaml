@@ -1,0 +1,16 @@
+# Example Embabel configuration when using its OpenAI-custom model starter.
+# Add embabel-agent-starter-openai-custom to the Embabel application's dependencies.
+# Follow your installed Embabel release's starter property names if they differ.
+# Embabel / Spring AI appends /v1/chat/completions, so base-url is the SERVER ROOT,
+# unlike the LiteLLM openai api_base shown in the LiteLLM example.
+embabel:
+  agent:
+    platform:
+      models:
+        openai:
+          custom:
+            api-key: ${SHARELLM_PUBLIC_KEY}
+            base-url: ${SHARELLM_BASE_URL:https://sharellm.example.org}
+            models: llama3.2:latest
+  models:
+    defaultLlm: llama3.2:latest

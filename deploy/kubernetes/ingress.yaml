@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sharellm-server
+  annotations:
+    # Assumes ingress-nginx and cert-manager; adapt the annotations to your ingress controller.
+    cert-manager.io/cluster-issuer: letsencrypt
+    # Synchronous calls wait up to REQUEST_WAIT_SECONDS (300 s); keep these above it.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "330"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "330"
+    # Keep above MAX_BODY_BYTES so the server answers with its own 413.
+    nginx.ingress.kubernetes.io/proxy-body-size: 2m
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - sharellm.example.org
+      secretName: sharellm-tls
+  rules:
+    - host: sharellm.example.org
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sharellm-server
+                port:
+                  name: http

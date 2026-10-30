@@ -1,0 +1,352 @@
+openapi: 3.0.3
+info:
+  title: ShareLLM inference gateway
+  version: 0.1.0
+  description: |
+    Implemented subset of the Ollama inference API, OpenAI-compatible inference,
+    and ShareLLM queue/worker extensions. The original Ollama specification has
+    additional endpoints which ShareLLM does not implement. Streaming is a
+    delayed, single final event rather than token-by-token.
+externalDocs:
+  description: Original upstream Ollama API definition
+  url: https://github.com/ollama/ollama/blob/main/docs/openapi.yaml
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /api/chat:
+    post:
+      summary: Chat using an available Ollama worker
+      operationId: ollamaChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Chat response or delayed single NDJSON event
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+            application/x-ndjson:
+              schema:
+                type: string
+        '504':
+          $ref: '#/components/responses/TimedOut'
+  /api/generate:
+    post:
+      summary: Generate using an available Ollama worker
+      operationId: ollamaGenerate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                model: {type: string}
+                prompt: {type: string}
+                stream: {type: boolean, default: true}
+              additionalProperties: true
+      responses:
+        '200':
+          description: Generate response or delayed single NDJSON event
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+            application/x-ndjson:
+              schema: {type: string}
+        '504':
+          $ref: '#/components/responses/TimedOut'
+  /api/embed:
+    post:
+      summary: Ollama current embedding API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, input]
+              properties:
+                model: {type: string}
+                input: {}
+              additionalProperties: true
+      responses:
+        '200':
+          description: Embeddings result
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+  /api/embeddings:
+    post:
+      summary: Ollama legacy embeddings API
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, prompt]
+              properties:
+                model: {type: string}
+                prompt: {type: string}
+              additionalProperties: true
+      responses:
+        '200':
+          description: Embedding result
+  /api/show:
+    post:
+      summary: Get local worker model information
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                model: {type: string}
+      responses:
+        '200':
+          description: Native model information
+  /api/tags:
+    get:
+      summary: Online advertised model names (synthetic metadata)
+      responses:
+        '200':
+          description: Online model list
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+  /api/version:
+    get:
+      summary: ShareLLM version
+      responses:
+        '200':
+          description: ShareLLM version string
+  /v1/chat/completions:
+    post:
+      summary: OpenAI-compatible chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Chat completion or delayed single SSE chunk
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+            text/event-stream:
+              schema: {type: string}
+  /v1/completions:
+    post:
+      summary: OpenAI-compatible text completion (string prompts)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, prompt]
+              properties:
+                model: {type: string}
+                prompt: {type: string}
+                stream: {type: boolean, default: false}
+              additionalProperties: true
+      responses:
+        '200':
+          description: Text completion
+  /v1/embeddings:
+    post:
+      summary: OpenAI-compatible vector embeddings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, input]
+              properties:
+                model: {type: string}
+                input: {}
+              additionalProperties: true
+      responses:
+        '200':
+          description: OpenAI embeddings
+  /v1/models:
+    get:
+      summary: Online models in OpenAI format
+      responses:
+        '200':
+          description: OpenAI model list
+  /sharellm/requests:
+    post:
+      summary: Enqueue asynchronously
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, request]
+              properties:
+                endpoint:
+                  type: string
+                  enum: [chat, generate, embed, embeddings, show]
+                request:
+                  type: object
+                  required: [model]
+                  additionalProperties: true
+      responses:
+        '202':
+          description: Queued; contains ID and Location header
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+  /sharellm/requests/{id}:
+    get:
+      summary: Poll durable result using same owner bearer key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '202':
+          description: Queued or leased
+        '200':
+          description: Completed; ShareLLM result envelope contains native Ollama JSON
+        '502':
+          description: Terminal inference failure
+        '404':
+          description: Unknown or other owner
+  /internal/workers/register:
+    post:
+      summary: Register or update worker/model inventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, models]
+              properties:
+                clientId: {type: string}
+                models: {type: array, items: {type: string}}
+      responses:
+        '200': {description: Registered}
+  /internal/workers/heartbeat:
+    post:
+      summary: Renew worker and its active lease
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId]
+              properties:
+                clientId: {type: string}
+      responses:
+        '200': {description: Heartbeat acknowledged}
+  /internal/jobs/claim:
+    get:
+      summary: Poll and atomically lease a request
+      parameters:
+        - name: clientId
+          in: query
+          required: true
+          schema: {type: string}
+        - name: waitSeconds
+          in: query
+          schema: {type: integer, default: 15}
+      responses:
+        '200':
+          description: Assigned job including leaseToken
+          content:
+            application/json:
+              schema: {type: object, additionalProperties: true}
+        '204': {description: No matching job during wait window}
+  /internal/jobs/{id}/complete:
+    post:
+      summary: Deliver result with lease fencing token
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, leaseToken, response]
+              properties:
+                clientId: {type: string}
+                leaseToken: {type: string, format: uuid}
+                response: {type: object, additionalProperties: true}
+      responses:
+        '200': {description: Result accepted}
+        '409': {description: Lease expired or already completed}
+  /internal/jobs/{id}/fail:
+    post:
+      summary: Fail and retry or terminally fail job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [clientId, leaseToken, error]
+              properties:
+                clientId: {type: string}
+                leaseToken: {type: string, format: uuid}
+                error: {type: string}
+      responses:
+        '200': {description: Failure acknowledged}
+        '409': {description: Lease expired or already completed}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Public endpoints use a public owner key; internal endpoints use the separate worker key.
+  responses:
+    TimedOut:
+      description: Synchronous wait elapsed; Location and X-ShareLLM-Request-Id allow later GET.
+      headers:
+        Location: {schema: {type: string}}
+        X-ShareLLM-Request-Id: {schema: {type: string, format: uuid}}
+  schemas:
+    ChatRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model: {type: string}
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role: {type: string}
+              content: {}
+            additionalProperties: true
+        stream: {type: boolean, default: true}
+        tools: {type: array, items: {type: object}}
+      additionalProperties: true

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sharellm-config
+data:
+  # External PostgreSQL (managed service or an operator such as CloudNativePG).
+  DATABASE_URL: jdbc:postgresql://postgres.example.org:5432/sharellm?sslmode=verify-full
+  DATABASE_USER: sharellm
+  # Connections per replica. Keep DB_POOL_SIZE x maxReplicas (hpa.yaml) below the
+  # database's max_connections minus headroom: 10 x 6 = 60.
+  DB_POOL_SIZE: "10"
+  REQUEST_WAIT_SECONDS: "300"
+  RESULT_RETENTION_HOURS: "24"
+  QUEUE_LIMIT: "0"
+  MAX_BODY_BYTES: "1048576"
+  SHUTDOWN_TIMEOUT: 30s
+  LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs

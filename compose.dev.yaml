@@ -1,0 +1,16 @@
+# Local development overlay: secrets from .env, everything published on 127.0.0.1 only.
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-sharellm}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+
+  sharellm:
+    environment:
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-sharellm}
+      SHARELLM_PUBLIC_KEYS: ${SHARELLM_PUBLIC_KEYS:?set SHARELLM_PUBLIC_KEYS in .env}
+      SHARELLM_WORKER_KEY: ${SHARELLM_WORKER_KEY:?set SHARELLM_WORKER_KEY in .env}
+    ports:
+      - "127.0.0.1:${SHARELLM_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${SHARELLM_MANAGEMENT_HOST_PORT:-8081}:8081"

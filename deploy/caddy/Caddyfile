@@ -1,0 +1,30 @@
+# HTTPS termination for ShareLLM Server. Certificates are obtained and renewed automatically.
+{
+	email {$ACME_EMAIL}
+}
+
+{$SHARELLM_DOMAIN} {
+	request_body {
+		max_size {$MAX_REQUEST_BODY}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Only the API port is proxied; health probes on port 8081 stay internal.
+	reverse_proxy sharellm:8080 {
+		transport http {
+			# Must exceed REQUEST_WAIT_SECONDS so synchronous inference is not cut off.
+			response_header_timeout {$UPSTREAM_RESPONSE_TIMEOUT}
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

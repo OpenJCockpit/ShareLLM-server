@@ -1,0 +1,18 @@
+# Java / Maven
+target/
+
+# IDE
+.idea/
+*.iml
+
+# Env and secrets
+.env
+.env.*
+!.env.example
+secrets/
+
+# OS
+.DS_Store
+
+# Python (test scripts)
+__pycache__/

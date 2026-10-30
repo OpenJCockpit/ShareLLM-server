@@ -1,0 +1,62 @@
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+  tomcat:
+    max-connections: 8192
+spring:
+  application:
+    name: sharellm-server
+  config:
+    # Docker/Kubernetes secrets: a file named SHARELLM_WORKER_KEY in this directory sets that variable.
+    import: optional:configtree:${SHARELLM_SECRETS_DIR:/run/secrets}/
+  lifecycle:
+    # Waiting synchronous callers are cut off after this; their jobs stay durable and pollable.
+    timeout-per-shutdown-phase: ${SHUTDOWN_TIMEOUT:30s}
+  threads:
+    virtual:
+      enabled: true
+  main:
+    keep-alive: true
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/sharellm}
+    username: ${DATABASE_USER:sharellm}
+    password: ${DATABASE_PASSWORD:sharellm}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:24}
+      connection-timeout: 5000
+  sql:
+    init:
+      mode: always
+management:
+  server:
+    # Health probes listen on a separate port that is never exposed through the reverse proxy.
+    port: ${MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      # Without its database an instance cannot serve anything: take it out of rotation, don't restart it.
+      group:
+        readiness:
+          include: readinessState,db
+      show-details: never
+sharellm:
+  # No defaults: the server refuses to start without both keys.
+  public-keys: ${SHARELLM_PUBLIC_KEYS:}
+  worker-key: ${SHARELLM_WORKER_KEY:}
+  heartbeat-timeout-seconds: ${HEARTBEAT_TIMEOUT_SECONDS:35}
+  lease-seconds: ${LEASE_SECONDS:45}
+  max-attempts: ${MAX_ATTEMPTS:3}
+  wait-seconds: ${REQUEST_WAIT_SECONDS:300}
+  poll-seconds: ${WORKER_POLL_SECONDS:15}
+  result-poll-millis: ${RESULT_POLL_MILLIS:350}
+  retention-hours: ${RESULT_RETENTION_HOURS:24}
+  queue-limit: ${QUEUE_LIMIT:0}
+  max-body-bytes: ${MAX_BODY_BYTES:1048576}
+logging:
+  level:
+    io.sharellm: INFO

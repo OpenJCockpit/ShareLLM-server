@@ -1,0 +1,83 @@
+# Production overlay: HTTPS through Caddy, Docker secrets, internal-only database network,
+# hardened containers, resource limits and rotated logs. See docs/deployment.md.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/DATABASE_PASSWORD
+    secrets: [DATABASE_PASSWORD]
+    restart: unless-stopped
+    shm_size: 256mb
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits:
+          memory: ${POSTGRES_MEMORY_LIMIT:-1g}
+    logging: *logging
+
+  sharellm:
+    secrets: [SHARELLM_PUBLIC_KEYS, SHARELLM_WORKER_KEY, DATABASE_PASSWORD]
+    environment:
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # Longer than SHUTDOWN_TIMEOUT (30s) so graceful shutdown can finish.
+    stop_grace_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: "${SHARELLM_CPU_LIMIT:-2}"
+          memory: ${SHARELLM_MEMORY_LIMIT:-1g}
+    networks: [backend, edge]
+    logging: *logging
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      sharellm:
+        condition: service_healthy
+    environment:
+      SHARELLM_DOMAIN: ${SHARELLM_DOMAIN:?set SHARELLM_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+      MAX_REQUEST_BODY: ${MAX_REQUEST_BODY:-2MB}
+      UPSTREAM_RESPONSE_TIMEOUT: ${UPSTREAM_RESPONSE_TIMEOUT:-330s}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: ["no-new-privileges:true"]
+    networks: [edge]
+    logging: *logging
+
+secrets:
+  SHARELLM_PUBLIC_KEYS:
+    file: ./secrets/sharellm_public_keys
+  SHARELLM_WORKER_KEY:
+    file: ./secrets/sharellm_worker_key
+  DATABASE_PASSWORD:
+    file: ./secrets/database_password
+
+networks:
+  # The database and the server's backend traffic never leave the host.
+  backend:
+    internal: true
+  edge:
+
+volumes:
+  caddy_data:
+  caddy_config:

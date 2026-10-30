@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sharellm-server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: sharellm-server
+  ports:
+    # Only the API port; the management port is reached by the kubelet directly.
+    - name: http
+      port: 80
+      targetPort: http
